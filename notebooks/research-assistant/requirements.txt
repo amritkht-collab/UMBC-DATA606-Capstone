@@ -1,4 +1,4 @@
-sdfa# Core LLM + agent framework
+# Core LLM + agent framework
 anthropic>=0.30.0
 langchain>=0.2.0
 langchain-community>=0.2.0
@@ -8,7 +8,7 @@ chromadb>=0.5.0
 sentence-transformers>=3.0.0
 
 # Dashboard
-streamlit>=1.36.0
+streamlit>=1.36.0pip 
 plotly>=5.22.0
 umap-learn>=0.5.6
 
