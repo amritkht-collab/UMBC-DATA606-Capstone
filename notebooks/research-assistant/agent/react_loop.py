@@ -21,7 +21,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import anthropic
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +46,10 @@ by combining your own reasoning with evidence gathered from external tools.
 Available tools:
 - web_search(query, num_results=5): general-purpose Google web search via
   SerpAPI. Use it for definitions, current events, or background context.
+- fetch_papers(query, max_results=5): search ArXiv, PubMed, and Semantic
+    Scholar for academic papers.
+- retrieve_from_db(query, top_k=5): retrieve relevant chunks from local
+    ChromaDB for RAG grounding.
 
 Follow the ReAct pattern on every turn:
   THINK: state in one short sentence what you need to do next.
@@ -54,8 +57,9 @@ Follow the ReAct pattern on every turn:
   OBS:   read the tool result before deciding the next step.
 
 Rules:
-- Prefer calling a tool when the user asks about facts, news, or definitions
-  you are not fully confident about.
+- Prefer calling tools when answering factual or technical questions.
+- For academic/research queries, prefer fetch_papers and retrieve_from_db
+    before finalizing the answer.
 - Cite source URLs inline in parentheses, e.g. (https://example.com).
 - Once you have enough evidence, stop calling tools and answer in a single
   well-structured paragraph (3-6 sentences).
@@ -126,6 +130,11 @@ def run_agent(
     max_tokens: int = MAX_TOKENS,
 ) -> str:
     """Run the ReAct loop for a single question and return the final answer."""
+    try:
+        import anthropic
+    except ImportError as exc:
+        raise RuntimeError("anthropic SDK is not installed. Install requirements first.") from exc
+
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY is not set. Add it to .env first.")
     if not TOOL_REGISTRY:

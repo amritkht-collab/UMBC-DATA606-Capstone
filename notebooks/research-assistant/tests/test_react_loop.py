@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -13,8 +14,13 @@ from agent import react_loop
 
 
 @pytest.mark.skipif(
-    not os.getenv("ANTHROPIC_API_KEY") or not os.getenv("SERPAPI_API_KEY"),
-    reason="ANTHROPIC_API_KEY and SERPAPI_API_KEY must be configured",
+    (
+        not os.getenv("ANTHROPIC_API_KEY")
+        or not os.getenv("SERPAPI_API_KEY")
+        or importlib.util.find_spec("anthropic") is None
+        or importlib.util.find_spec("serpapi") is None
+    ),
+    reason="Keys and runtime dependencies (anthropic, serpapi) must be configured",
 )
 def test_react_loop_integration_smoke(capsys, caplog):
     caplog.set_level(logging.DEBUG)

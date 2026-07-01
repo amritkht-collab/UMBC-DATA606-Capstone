@@ -10,7 +10,6 @@ import os
 from typing import Any
 
 from dotenv import load_dotenv
-from serpapi import GoogleSearch
 
 load_dotenv()
 
@@ -29,6 +28,13 @@ def fetch_serpapi(query: str, num_results: int = 5) -> list[dict[str, Any]]:
         raise RuntimeError(
             "SERPAPI_API_KEY is not set. Add it to .env before calling web_search."
         )
+
+    try:
+        from serpapi import GoogleSearch
+    except ImportError as exc:
+        raise RuntimeError(
+            "google-search-results (serpapi) is not installed. Install requirements first."
+        ) from exc
 
     params = {
         "engine": "google",
