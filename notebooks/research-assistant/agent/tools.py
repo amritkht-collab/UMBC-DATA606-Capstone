@@ -11,6 +11,8 @@ Tools are added incrementally across the project:
 
 from __future__ import annotations
 
+import os
+import re
 from typing import Any, Callable
 
 from data.sources.arxiv import fetch_arxiv
@@ -22,6 +24,31 @@ from data.vectorstore import retrieve
 ToolFn = Callable[..., Any]
 
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {}
+DEFAULT_SUMMARY_MODEL = os.getenv("CLAUDE_MODEL_SUMMARY", "claude-sonnet-4-5")
+
+
+def _extractive_summary(text: str, max_sentences: int = 3) -> str:
+    cleaned = " ".join(text.split())
+    if not cleaned:
+        return ""
+
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", cleaned) if part.strip()]
+    if len(sentences) <= max_sentences:
+        return " ".join(sentences)
+
+    keywords = [token.lower() for token in re.findall(r"[A-Za-z0-9]+", cleaned) if len(token) >= 5]
+    weights: dict[str, int] = {}
+    for token in keywords:
+        weights[token] = weights.get(token, 0) + 1
+
+    scored: list[tuple[int, int, str]] = []
+    for idx, sentence in enumerate(sentences):
+        score = sum(weights.get(token.lower(), 0) for token in re.findall(r"[A-Za-z0-9]+", sentence))
+        scored.append((score, -idx, sentence))
+
+    top_sentences = [item[2] for item in sorted(scored, reverse=True)[:max_sentences]]
+    ordered = [sentence for sentence in sentences if sentence in top_sentences]
+    return " ".join(ordered)
 
 
 def register_tool(name: str, description: str, schema: dict[str, Any]) -> Callable[[ToolFn], ToolFn]:
@@ -190,3 +217,73 @@ def fetch_papers(query: str, max_results: int = 5) -> list[dict[str, Any]]:
 def retrieve_from_db(query: str, top_k: int = 5) -> list[dict[str, Any]]:
     """Local vector retrieval tool."""
     return retrieve(query=query, top_k=max(1, min(int(top_k), 20)))
+
+
+@register_tool(
+    name="summarize_doc",
+    description=(
+        "Summarize a long paper abstract, retrieved chunk list, or article body into "
+        "a concise research-oriented summary with the main claim and supporting details."
+    ),
+    schema={
+        "type": "object",
+        "properties": {
+            "text": {
+                "type": "string",
+                "description": "Document text, abstract, or concatenated chunks to summarize.",
+            },
+            "max_sentences": {
+                "type": "integer",
+                "description": "Maximum number of summary sentences to return (1-5).",
+                "default": 3,
+            },
+        },
+        "required": ["text"],
+    },
+)
+def summarize_doc(text: str, max_sentences: int = 3) -> dict[str, Any]:
+    """Summarize document text with Claude when available, else extractive fallback."""
+    cleaned = " ".join(text.split())
+    if not cleaned:
+        raise ValueError("text must not be empty")
+
+    sentence_limit = max(1, min(int(max_sentences), 5))
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if api_key:
+        try:
+            import anthropic
+
+            client = anthropic.Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model=DEFAULT_SUMMARY_MODEL,
+                max_tokens=400,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": (
+                            "Summarize the following research text in "
+                            f"no more than {sentence_limit} sentences. Focus on the main claim, "
+                            "methods, and why it matters.\n\n"
+                            f"{cleaned}"
+                        ),
+                    }
+                ],
+            )
+            text_blocks = [
+                block.text for block in response.content if getattr(block, "type", None) == "text"
+            ]
+            summary = " ".join(part.strip() for part in text_blocks if part.strip())
+            if summary:
+                return {
+                    "summary": summary,
+                    "sentences": sentence_limit,
+                    "method": DEFAULT_SUMMARY_MODEL,
+                }
+        except Exception:
+            pass
+
+    return {
+        "summary": _extractive_summary(cleaned, max_sentences=sentence_limit),
+        "sentences": sentence_limit,
+        "method": "extractive-fallback",
+    }
