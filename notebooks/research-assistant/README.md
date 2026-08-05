@@ -64,6 +64,9 @@ Copy-Item .env.example .env
 
 # 5. Verify the Claude connection
 python hello_claude.py
+
+# 6. Run streamlit application 
+python -m streamlit run .\dashboard\app.py
 ```
 
 ## Roadmap

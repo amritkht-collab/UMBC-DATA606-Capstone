@@ -8,7 +8,7 @@ chromadb>=0.5.0
 sentence-transformers>=3.0.0
 
 # Dashboard
-streamlit>=1.36.0pip 
+streamlit>=1.36.0
 plotly>=5.22.0
 umap-learn>=0.5.6
 
@@ -30,3 +30,6 @@ google-search-results>=2.4.2  # SerpAPI client
 pandas>=2.2.0
 sqlalchemy>=2.0.0
 python-dotenv>=1.0.0
+
+# Testing
+pytest>=8.0.0

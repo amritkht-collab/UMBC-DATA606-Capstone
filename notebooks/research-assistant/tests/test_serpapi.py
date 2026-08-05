@@ -1,5 +1,6 @@
 import os
 import sys
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,11 @@ def test_fetch_serpapi_requires_api_key(monkeypatch):
     with pytest.raises(RuntimeError, match="SERPAPI_API_KEY"):
         serpapi.fetch_serpapi("python")
 
+
+@pytest.mark.skipif(
+    not os.getenv("SERPAPI_API_KEY") or importlib.util.find_spec("serpapi") is None,
+    reason="SERPAPI_API_KEY and serpapi package must be configured",
+)
 def test_fetch_serpapi_smoke():
     results = serpapi.fetch_serpapi("python", num_results=3)
 
